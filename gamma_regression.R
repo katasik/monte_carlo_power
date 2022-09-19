@@ -16,13 +16,13 @@ n<- 300
 #I need to take dispersion parameter from the gamma regression where the predictors were included
 #and the mean will be the exponentiated intercept from the model
 
-simstudy::gammaGetShapeRate(139.2624, 0.9015763)
+simstudy::gammaGetShapeRate(58.04973, 0.9015763)
 
 
 #generate 300 random numbers for gamma distr.
 learning_random <-
   rgamma(n = 300, # How many values we want? 
-         rate = 0.007964594,
+         rate = 0.01910721,
          shape =  1.109168) 
 
 #plot it
@@ -31,18 +31,22 @@ hist(learning_random)
 
 #generate 300 random numbers for normal distr. for implicit measure
 pep_effect_random <-
-  rnorm(n = 300, # How many values we want? 
-        mean = 0,
-        sd = 1) 
+  truncnorm::rtruncnorm(n = 300, # How many values we want? 
+                        mean = 0.02,
+                        sd = 0.09,
+                        a = -0.23,
+                        b = 0.26) 
 
 #plot it
 hist(pep_effect_random)
 
 #generate 300 random numbers for normal distr. for self-efficacy
 self_efficacy_random <-
-  rnorm(n = 300, # How many values we want? 
-        mean = 0,
-        sd = 1) 
+  truncnorm::rtruncnorm(n = 300, # How many values we want? 
+                        mean = 3.60,
+                        sd = 0.68,
+                        a = 1.14,
+                        b = 5.29) 
 
 #plot it
 hist(self_efficacy_random)
@@ -57,8 +61,8 @@ learning_df <-
          growth_mindset = pep_effect_random, # Use the random implicit measure variable that we generated
          self_efficacy = self_efficacy_random # Use the random self-efficacy variable that we generated
   ) %>% 
-  # Add the effect size of growth mindset(.155) and self-efficacy(.159)
-  mutate(log_learning_time = intercept+ growth_mindset * 0.155 + self_efficacy * 0.159,
+  # Add the effect size of growth mindset(1.7697) and self-efficacy(0.2342)
+  mutate(log_learning_time = intercept+ growth_mindset * 1.7697 + self_efficacy * 0.2342,
          #need to exponentiate it back because the model will logtransform it
          learning_time = exp(log_learning_time))
 
@@ -85,14 +89,16 @@ glm(learning_time~growth_mindset +self_efficacy,
 # These parameters are set here for testing purposes
 
 n = 500
-means = c(0, 0) # GM, self-efficacy
-sds = c(1, 1)  # GM, self-efficacy
-rate = 0.007419769 #outcome
-shape =  1.056137 #outcome
-effects_main = c(0.155, 0.159) # GM, self-efficacy
+means = c(0.02, 3.60) # GM, self-efficacy
+sds = c(0.09, 0.68)  # GM, self-efficacy
+mins = c(-0.23, 1.14) # min values from previous study, GM, self-efficacy
+maxs = c(0.26, 5.29) # max values from previous study, GM, self-efficacy
+rate = 0.01910721 #outcome
+shape =  1.109168 #outcome
+effects_main = c(1.7697, 0.2342) # GM, self-efficacy
 
 
-generate_dataset <- function(n, means, sds, shape, rate,
+generate_dataset <- function(n, means, sds, mins, maxs, shape, rate,
                              effects_main){
   
   # First I just define the variables
@@ -101,12 +107,16 @@ generate_dataset <- function(n, means, sds, shape, rate,
          intercept = log(rgamma(n = n, 
                 rate = rate,
                 shape =  shape)),
-         growth_mindset = rnorm(n = n, 
-                                  mean = means[1],
-                                  sd = sds[1]),
-         self_efficacy = rnorm(n = n, 
-                               mean = means[2],
-                               sd = sds[2])) %>% 
+         growth_mindset = truncnorm::rtruncnorm(n = n, # How many values we want? 
+                                                mean = means[1],
+                                                sd = sds[1],
+                                                a = mins[1],
+                                                b = maxs[1]),
+         self_efficacy = truncnorm::rtruncnorm(n = n, # How many values we want? 
+                                               mean = means[2],
+                                               sd = sds[2],
+                                               a = mins[2],
+                                               b = maxs[2])) %>% 
     # Then I generate data into the cells as nested list values
     mutate(log_learning_time = intercept+growth_mindset * effects_main[1] + self_efficacy * effects_main[2],
            learning_time = exp(log_learning_time)) 
@@ -118,11 +128,13 @@ generate_dataset <- function(n, means, sds, shape, rate,
 
 learning_df <-
   generate_dataset(n = 1000,
-                   means = c(0, 0), # GM, self-efficacy
-                   sds = c(1, 1),  # GM, self-efficacy
-                   rate = 0.007419769, #outcome
-                   shape =  1.056137, #outcome
-                   effects_main = c(0.155, 0.159)) # GM, self-efficacy
+                   means = c(0.02, 3.60), # GM, self-efficacy
+                   sds = c(0.09, 0.68),  # GM, self-efficacy
+                   mins = c(-0.23, 1.14), # min values from previous study, GM, self-efficacy
+                   maxs = c(0.26, 5.29), # max values from previous study, GM, self-efficacy
+                   rate = 0.01910721, #outcome
+                   shape =  1.109168, #outcome
+                   effects_main = c(1.7697, 0.2342)) # GM, self-efficacy # GM, self-efficacy
 
 
 glm(learning_time~growth_mindset +self_efficacy, 
@@ -143,11 +155,14 @@ sim_data <-
   # Now, I simply iterate through each line, and create several datasets
   mutate(data = map(dataset, 
                     ~generate_dataset(n = 1000,
-                                      means = c(0, 0), # GM, self-efficacy
-                                      sds = c(1, 1),  # GM, self-efficacy
-                                      rate = 0.007419769, #outcome
-                                      shape =  1.056137, #outcome
-                                      effects_main = c(0.155, 0.159))))
+                                      means = c(0.02, 3.60), # GM, self-efficacy
+                                      sds = c(0.09, 0.68),  # GM, self-efficacy
+                                      mins = c(-0.23, 1.14), # min values from previous study, GM, self-efficacy
+                                      maxs = c(0.26, 5.29), # max values from previous study, GM, self-efficacy
+                                      rate = 0.01910721, #outcome
+                                      shape =  1.109168, #outcome
+                                      effects_main = c(1.7697, 0.2342)) # GM, self-efficacy # GM, self-efficacy
+                    ))
 sim_data
 # Let's check what's in each individual dataset
 unnest(sim_data, data)
@@ -167,6 +182,7 @@ sim_result <-
                        # Put the results into a tidy dataframe
                        tidy()
   ))
+
 
 # What's in the model variable? A tibble of statistical output
 sim_result %>% 
@@ -195,24 +211,26 @@ sim_result %>%
 # I can use `crossing()` function to do this.
 # Crossing creates rows for every combinations of the specified variables in a dataset.
 # 
-# Let's define the minimum sample size as 30, and increase it until 300 with increments of 30.
+# Let's define the minimum sample size as 140, and increase it until 360 with increments of 30.
 # I can do this using the `seq()` function.
 
 
 # These parameters define the parameter matrix
 
 replications = 10000 # The number of replications 
-min_sample = 30
-max_sample = 300
+min_sample = 140
+max_sample = 360
 sample_increment = 30
 
 # These parameters define the datasets
 
-means = c(0, 0) # GM, self-efficacy
-sds = c(1, 1)  # GM, self-efficacy
-rate = 0.007419769 #outcome
-shape =  1.056137 #outcome
-effects_main = c(0.155, 0.159) # GM, self-efficacy
+means = c(0.02, 3.60) # GM, self-efficacy
+sds = c(0.09, 0.68)  # GM, self-efficacy
+mins = c(-0.23, 1.14) # min values from previous study, GM, self-efficacy
+maxs = c(0.26, 5.29) # max values from previous study, GM, self-efficacy
+rate = 0.01910721 #outcome
+shape =  1.109168 #outcome
+effects_main = c(1.7697, 0.2342) # GM, self-efficacy
 
 # These parameters define the evaluation of the results
 significance_level = .05 # The threshold for false positives (I will need this later)
@@ -226,11 +244,14 @@ multiple_n <-
   # Now, I simply iterate through each line, and create a dataset
   mutate(data = map(group_size, 
                     ~generate_dataset(n = .x,
-                                      means = c(0, 0), # GM, self-efficacy
-                                      sds = c(1, 1),  # GM, self-efficacy
-                                      rate = 0.007419769, #outcome
-                                      shape =  1.056137, #outcome
-                                      effects_main = c(0.155, 0.159))))
+                                      means = c(0.02, 3.60), # GM, self-efficacy
+                                      sds = c(0.09, 0.68),  # GM, self-efficacy
+                                      mins = c(-0.23, 1.14), # min values from previous study, GM, self-efficacy
+                                      maxs = c(0.26, 5.29), # max values from previous study, GM, self-efficacy
+                                      rate = 0.01910721, #outcome
+                                      shape =  1.109168, #outcome
+                                      effects_main = c(1.7697, 0.2342) # GM, self-efficacy
+                                      )))
 
 multiple_n
 
